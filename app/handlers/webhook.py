@@ -1,9 +1,20 @@
+from flask import Blueprint, request
 from telegram import Update
-from telegram.ext import ContextTypes
-from app.utils.logs import log
+from telegram.ext import Dispatcher
 
-async def webhook_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    log(f"Update recebido: {update.to_dict()}")
-    
-    if update.message:
-        await update.message.reply_text("Recebido!")
+webhook_bp = Blueprint("webhook", __name__)
+
+dispatcher: Dispatcher = None
+
+def set_dispatcher(d):
+    global dispatcher
+    dispatcher = d
+
+@webhook_bp.route("/webhook", methods=["POST"])
+def webhook():
+    if dispatcher is None:
+        return "Dispatcher not ready", 500
+
+    update = Update.de_json(request.get_json(force=True), dispatcher.bot)
+    dispatcher.process_update(update)
+    return "OK", 200
