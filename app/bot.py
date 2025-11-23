@@ -1,36 +1,54 @@
+from flask import Flask, request
+from telegram import Update
+from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 import os
-from flask import Flask
-from telegram.ext import Dispatcher, CommandHandler
-from telegram import Bot
 
-from app.handlers.webhook import webhook_bp, set_dispatcher
-from app.handlers.start import start
-from app.handlers.help import help_command
+TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Ex: https://seuapp.onrender.com/webhook
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+app = Flask(__name__)
 
-def create_app():
-    app = Flask(__name__)
+# ========================
+# Telegram Bot Application
+# ========================
 
-    bot = Bot(token=TELEGRAM_TOKEN)
-    dispatcher = Dispatcher(bot, None, use_context=True)
-    set_dispatcher(dispatcher)
+application = ApplicationBuilder().token(TOKEN).build()
 
-    dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CommandHandler("help", help_command))
+# ---- Commands ----
 
-    app.register_blueprint(webhook_bp)
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Bot funcionando no Render! 🚀")
 
-    @app.route("/")
-    def home():
-        return "Bot online!"
+application.add_handler(CommandHandler("start", start))
 
-    @app.route("/set_webhook")
-    def set_webhook():
-        webhook_url = "https://estatupidas-bot.onrender.com/webhook"
-        bot.set_webhook(url=webhook_url)
-        return f"Webhook definido para: {webhook_url}"
 
-    return app
+# ========================
+# Webhook route (Flask)
+# ========================
 
-app = create_app()
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    update = Update.de_json(request.get_json(force=True), application.bot)
+    application.update_queue.put_nowait(update)
+    return "ok", 200
+
+
+# ========================
+# Root route
+# ========================
+
+@app.route("/", methods=["GET"])
+def home():
+    return "Bot online! ✔"
+
+
+# ========================
+# Start webhook server
+# ========================
+
+if __name__ == "__main__":
+    application.run_webhook(
+        listen="0.0.0.0",
+        port=int(os.getenv("PORT", 10000)),
+        webhook_url=WEBHOOK_URL
+    )
