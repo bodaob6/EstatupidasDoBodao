@@ -1,16 +1,35 @@
 services:
   - type: web
     name: estatupidas-bot
-    env: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app.bot:app
-    plan: free
+    runtime: python
+    plan: starter
     region: oregon
+
+    buildCommand: pip install -r requirements.txt
+
+    startCommand: python -m app.bot
+
+    autoDeploy: true
+
     envVars:
       - key: BOT_TOKEN
         sync: false
-      - key: RENDER_EXTERNAL_URL
-        fromService:
-          name: estatupidas-bot
-          type: web
-          property: url
+      - key: WEBHOOK_URL
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.10.13
+      - key: TZ
+        value: UTC
+
+    healthCheckPath: /
+    healthCheckTimeout: 200
+    healthCheckPeriod: 30
+
+    scaling:
+      minInstances: 1
+      maxInstances: 2
+
+    disk:
+      name: bot-storage
+      mountPath: /var/data
+      sizeGB: 1
