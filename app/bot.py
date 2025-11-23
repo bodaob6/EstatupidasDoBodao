@@ -1,54 +1,65 @@
+import os
 from flask import Flask, request
 from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-import os
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    ContextTypes,
+)
+from app.handlers.start import start_command
+from app.handlers.help import help_command
+from app.handlers.main_menu import menu_command
+from app.utils.logs import logger
+
 
 TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Ex: https://seuapp.onrender.com/webhook
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")
+PORT = int(os.getenv("PORT", 10000))
 
+# Flask app
 app = Flask(__name__)
 
-# ========================
-# Telegram Bot Application
-# ========================
-
+# Telegram Application
 application = ApplicationBuilder().token(TOKEN).build()
 
-# ---- Commands ----
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Bot funcionando no Render! 🚀")
-
-application.add_handler(CommandHandler("start", start))
+# ========================
+# Register Handlers
+# ========================
+application.add_handler(CommandHandler("start", start_command))
+application.add_handler(CommandHandler("help", help_command))
+application.add_handler(CommandHandler("menu", menu_command))
 
 
 # ========================
-# Webhook route (Flask)
+# Webhook (Flask)
 # ========================
-
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    update = Update.de_json(request.get_json(force=True), application.bot)
-    application.update_queue.put_nowait(update)
-    return "ok", 200
+    try:
+        data = request.get_json(force=True)
+        update = Update.de_json(data, application.bot)
+        application.update_queue.put_nowait(update)
 
+        logger.info("Update recebido do webhook.")
+        return "ok", 200
 
-# ========================
-# Root route
-# ========================
+    except Exception as e:
+        logger.error(f"Erro no webhook: {e}")
+        return "error", 500
+
 
 @app.route("/", methods=["GET"])
 def home():
-    return "Bot online! ✔"
+    return "Bot online e funcionando ✔", 200
 
 
 # ========================
-# Start webhook server
+# Iniciar o Webhook
 # ========================
-
 if __name__ == "__main__":
+    logger.info("Iniciando servidor do bot...")
     application.run_webhook(
         listen="0.0.0.0",
-        port=int(os.getenv("PORT", 10000)),
-        webhook_url=WEBHOOK_URL
+        port=PORT,
+        webhook_url=WEBHOOK_URL,
     )
