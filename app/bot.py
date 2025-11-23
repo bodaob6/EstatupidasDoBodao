@@ -1,35 +1,36 @@
 import os
-from flask import Flask, request
-from telegram import Update
-from telegram.ext import Application, CommandHandler
+from flask import Flask
+from telegram.ext import Dispatcher, CommandHandler
+from telegram import Bot
 
+from app.handlers.webhook import webhook_bp, set_dispatcher
 from app.handlers.start import start
-from app.handlers.webhook import webhook_handler
-from app.utils.logs import log
+from app.handlers.help import help_command
 
-TOKEN = os.getenv("BOT_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 
-app = Flask(__name__)
+def create_app():
+    app = Flask(__name__)
 
-application = (
-    Application.builder()
-    .token(TOKEN)
-    .concurrent_updates(True)
-    .build()
-)
+    bot = Bot(token=TELEGRAM_TOKEN)
+    dispatcher = Dispatcher(bot, None, use_context=True)
+    set_dispatcher(dispatcher)
 
-application.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(CommandHandler("help", help_command))
 
-@app.post("/")
-def webhook():
-    data = request.get_json(force=True)
-    update = Update.de_json(data, application.bot)
-    application.create_task(webhook_handler(update, application))
-    return "OK", 200
+    app.register_blueprint(webhook_bp)
 
-@app.get("/healthz")
-def health_check():
-    return "Bot OK!", 200
+    @app.route("/")
+    def home():
+        return "Bot online!"
 
-if __name__ == "__main__":
-    application.run_polling()
+    @app.route("/set_webhook")
+    def set_webhook():
+        webhook_url = "https://estatupidas-bot.onrender.com/webhook"
+        bot.set_webhook(url=webhook_url)
+        return f"Webhook definido para: {webhook_url}"
+
+    return app
+
+app = create_app()
